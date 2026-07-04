@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Executor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f6f9;
+    min-height: 100vh;
+  }
+
+  /* Navbar */
+  nav {
+    background: #1e293b;
+    padding: 0 28px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .nav-title {
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .db-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+
+  .db-badge.connected    { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.4); }
+  .db-badge.disconnected { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.4); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Layout */
+  .container { max-width: 860px; margin: 40px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 28px; }
+
+  .section-title { font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+  /* Card */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.05);
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .card-header {
+    padding: 12px 18px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  textarea#query {
+    width: 100%;
+    padding: 16px 18px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    border: none;
+    outline: none;
+    resize: vertical;
+    min-height: 130px;
+    color: #1e293b;
+    background: #fff;
+  }
+
+  .card-footer {
+    padding: 11px 18px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hint { font-size: 12px; color: #94a3b8; }
+
+  /* Buttons */
+  .btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+  }
+
+  .btn-blue  { background: #2563eb; color: #fff; }
+  .btn-blue:hover  { background: #1d4ed8; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-green:hover { background: #15803d; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #f8fafc;
+    margin: 16px 18px 0;
+  }
+
+  .upload-zone:hover, .upload-zone.drag { border-color: #2563eb; background: #eff6ff; }
+  .upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-zone p { color: #64748b; font-size: 14px; }
+  .upload-zone strong { color: #2563eb; }
+
+  #fileInput { display: none; }
+
+  .file-chosen {
+    margin: 10px 18px 0;
+    padding: 9px 14px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #15803d;
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Read file row */
+  .read-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 18px;
+  }
+
+  .read-row input {
+    flex: 1;
+    padding: 9px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .read-row input:focus { border-color: #2563eb; }
+
+  /* File list */
+  .file-list { padding: 0 18px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .file-chip {
+    padding: 5px 12px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .file-chip:hover { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+  .file-chip .chip-size { color: #94a3b8; font-size: 11px; }
+
+  /* Results */
+  .result-status {
+    padding: 11px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+
+  .result-status.ok  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .result-status.err { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-family: monospace; }
+
+  /* File content viewer */
+  .file-viewer {
+    background: #1e293b;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #334155;
+  }
+
+  .viewer-header {
+    padding: 10px 16px;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .viewer-filename { color: #e2e8f0; font-family: monospace; font-weight: 600; }
+
+  .viewer-body {
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #e2e8f0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  /* SQL results table */
+  .table-card { background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; }
+  .table-info  { padding: 9px 14px; font-size: 12px; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .table-scroll { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { padding: 9px 13px; background: #f1f5f9; text-align: left; font-weight: 700; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 9px 13px; color: #334155; border-bottom: 1px solid #f1f5f9; font-family: 'Courier New', monospace; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  .null-val { color: #94a3b8; font-style: italic; }
+
+  /* Hidden helper */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-title">🗄️ SQL Executor</div>
+  <div class="db-badge disconnected" id="dbBadge">
+    <div class="dot"></div>
+    <span id="dbText">Checking...</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ── SQL Section ── -->
+  <div>
+    <div class="section-title">⚡ SQL Command</div>
+    <div class="card">
+      <div class="card-header">📝 Query Editor</div>
+      <textarea id="query" placeholder="-- Type any SQL command:
+CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, salary REAL);
+INSERT INTO employees VALUES (1, 'Alice', 75000);
+SELECT * FROM employees;"></textarea>
+      <div class="card-footer">
+        <span class="hint">Ctrl + Enter to run</span>
+        <button class="btn btn-blue" id="runBtn" onclick="runQuery()">▶ Execute</button>
+      </div>
+    </div>
+    <div id="sqlResults" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- ── Upload Section ── -->
+  <div>
+    <div class="section-title">📁 Upload File</div>
+    <div class="card">
+      <div class="card-header">📤 Upload</div>
+
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">☁️</div>
+        <p>Drag & drop a file here, or <strong>click to browse</strong></p>
+      </div>
+      <input type="file" id="fileInput" onchange="handleFileSelect(this)">
+      <div class="file-chosen" id="fileChosen">
+        <span>📄</span>
+        <span id="chosenName"></span>
+      </div>
+
+      <div class="card-footer">
+        <span class="hint" id="uploadHint">No file selected</span>
+        <button class="btn btn-green" id="uploadBtn" onclick="uploadFile()" disabled>⬆ Upload</button>
+      </div>
+    </div>
+    <div id="uploadResult" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- ── Read File Section ── -->
+  <div>
+    <div class="section-title">🔍 Read Uploaded File</div>
+    <div class="card">
+      <div class="card-header">📂 Uploaded Files — click to read</div>
+      <div class="file-list" id="fileList"><span style="font-size:13px;color:#94a3b8;padding:12px 0 4px;">No files uploaded yet.</span></div>
+
+      <div style="border-top:1px solid #e2e8f0;">
+        <div class="card-header" style="border-top:none;">✏️ Or enter filename manually</div>
+        <div class="read-row">
+          <input type="text" id="readFilename" placeholder="e.g. notes.txt" />
+          <button class="btn btn-blue" onclick="readFile()">📖 Read</button>
+        </div>
+      </div>
+    </div>
+    <div id="fileResult" style="margin-top:14px;"></div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  let selectedFile = null;
+
+  // ── DB status ────────────────────────────────────────────
+  async function checkStatus() {
+    const badge = document.getElementById('dbBadge');
+    const text  = document.getElementById('dbText');
+    try {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+      if (data.connected) {
+        badge.className = 'db-badge connected';
+        text.textContent = 'DB Connected';
+      } else {
+        badge.className = 'db-badge disconnected';
+        text.textContent = 'DB Disconnected';
+      }
+    } catch {
+      badge.className = 'db-badge disconnected';
+      text.textContent = 'DB Disconnected';
+    }
+  }
+
+  // ── SQL execute ──────────────────────────────────────────
+  async function runQuery() {
+    const query = document.getElementById('query').value.trim();
+    if (!query) return;
+    const btn = document.getElementById('runBtn');
+    btn.disabled = true; btn.textContent = 'Running...';
+    try {
+      const res  = await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      renderSQL(await res.json());
+    } catch(e) { renderSQL({success:false, error:'Network error: '+e.message}); }
+    finally { btn.disabled = false; btn.innerHTML = '▶ Execute'; }
+  }
+
+  function renderSQL(data) {
+    const box = document.getElementById('sqlResults');
+    if (!data.success) { box.innerHTML = `<div class="result-status err">⚠ ${esc(data.error)}</div>`; return; }
+    const r = data.result;
+    if (r.message) { box.innerHTML = `<div class="result-status ok">✓ ${esc(r.message)}</div>`; return; }
+    let html = `<div class="result-status ok">✓ ${r.rowcount} row(s) returned</div>`;
+    if (r.rows.length) {
+      html += `<div class="table-card"><div class="table-info">${r.rowcount} row(s) · ${r.columns.length} column(s)</div><div class="table-scroll"><table><thead><tr>`;
+      r.columns.forEach(c => { html += `<th>${esc(c)}</th>`; });
+      html += '</tr></thead><tbody>';
+      r.rows.forEach(row => {
+        html += '<tr>';
+        r.columns.forEach(c => {
+          const v = row[c];
+          html += v === null ? '<td><span class="null-val">NULL</span></td>' : `<td>${esc(String(v))}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+    box.innerHTML = html;
+  }
+
+  // ── File upload ──────────────────────────────────────────
+  function handleFileSelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    selectedFile = file;
+    document.getElementById('chosenName').textContent = file.name + ' (' + formatSize(file.size) + ')';
+    document.getElementById('fileChosen').style.display = 'flex';
+    document.getElementById('uploadHint').textContent = file.name;
+    document.getElementById('uploadBtn').disabled = false;
+  }
+
+  async function uploadFile() {
+    if (!selectedFile) return;
+    const btn = document.getElementById('uploadBtn');
+    btn.disabled = true; btn.textContent = 'Uploading...';
+    const form = new FormData();
+    form.append('file', selectedFile);
+    try {
+      const res  = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      const box  = document.getElementById('uploadResult');
+      if (data.success) {
+        box.innerHTML = `<div class="result-status ok">✓ "${esc(data.filename)}" uploaded successfully (${formatSize(data.size)})</div>`;
+        loadFileList();
+      } else {
+        box.innerHTML = `<div class="result-status err">⚠ ${esc(data.error)}</div>`;
+      }
+    } catch(e) {
+      document.getElementById('uploadResult').innerHTML = `<div class="result-status err">⚠ Network error</div>`;
+    }
+    btn.disabled = false; btn.textContent = '⬆ Upload';
+  }
+
+  // drag-drop
+  const zone = document.getElementById('uploadZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer(); dt.items.add(file);
+    document.getElementById('fileInput').files = dt.files;
+    handleFileSelect(document.getElementById('fileInput'));
+  });
+
+  // ── File list ────────────────────────────────────────────
+  async function loadFileList() {
+    const res  = await fetch('/api/files');
+    const data = await res.json();
+    const list = document.getElementById('fileList');
+    if (!data.files.length) {
+      list.innerHTML = '<span style="font-size:13px;color:#94a3b8;padding:12px 0 4px;">No files uploaded yet.</span>';
+      return;
+    }
+    list.innerHTML = data.files.map(f =>
+      `<div class="file-chip" onclick="fillAndRead('${esc(f.name)}')">
+        📄 ${esc(f.name)} <span class="chip-size">${formatSize(f.size)}</span>
+      </div>`
+    ).join('');
+  }
+
+  function fillAndRead(name) {
+    document.getElementById('readFilename').value = name;
+    readFile();
+  }
+
+  // ── Read file ────────────────────────────────────────────
+  async function readFile() {
+    const name = document.getElementById('readFilename').value.trim();
+    if (!name) return;
+    const box = document.getElementById('fileResult');
+    box.innerHTML = '<div class="result-status ok" style="color:#2563eb;border-color:#bfdbfe;background:#eff6ff;">Loading...</div>';
+    try {
+      const res  = await fetch('/api/read/' + encodeURIComponent(name));
+      const data = await res.json();
+      if (!data.success) {
+        box.innerHTML = `<div class="result-status err">⚠ ${esc(data.error)}</div>`;
+        return;
+      }
+      const lines = data.content.split('\n').length;
+      box.innerHTML = `
+        <div class="file-viewer">
+          <div class="viewer-header">
+            <span class="viewer-filename">📄 ${esc(data.filename)}</span>
+            <span>${lines} line${lines!==1?'s':''} · <a href="/api/download/${encodeURIComponent(data.filename)}" style="color:#94a3b8;text-decoration:none;" download>⬇ Download</a></span>
+          </div>
+          <div class="viewer-body">${esc(data.content)}</div>
+        </div>`;
+    } catch(e) {
+      box.innerHTML = `<div class="result-status err">⚠ Network error</div>`;
+    }
+  }
+
+  // ── Utilities ─────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1048576).toFixed(1) + ' MB';
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runQuery();
+  });
+
+  checkStatus();
+  loadFileList();
+</script>
+</body>
+</html>
