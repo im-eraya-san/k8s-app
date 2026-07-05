@@ -21,6 +21,16 @@ def index():
     return render_template("index.html")
 
 
+# ── Machine info ───────────────────────────────────────────
+@app.route("/api/info")
+def info():
+    import socket
+    return jsonify({
+        "hostname": socket.gethostname(),
+        "db_host": os.environ.get("HOST", "N/A")
+    })
+
+
 # ── DB status ─────────────────────────────────────────────
 @app.route("/api/status")
 def db_status():
@@ -137,4 +147,4 @@ def download_file(filename):
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0',debug=True)
+    app.run(debug=True)
